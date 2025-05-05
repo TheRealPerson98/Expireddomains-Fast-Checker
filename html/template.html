@@ -1,0 +1,438 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Available Domains Viewer</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 0;
+            padding: 20px;
+            background-color: #f5f5f5;
+        }
+        h1 {
+            color: #333;
+            text-align: center;
+        }
+        .container {
+            max-width: 95%;
+            margin: 0 auto;
+            background-color: white;
+            padding: 20px;
+            box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
+            border-radius: 5px;
+            overflow-x: auto;
+        }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 20px;
+            table-layout: auto;
+        }
+        th, td {
+            padding: 8px 10px;
+            border-bottom: 1px solid #ddd;
+            text-align: left;
+            white-space: nowrap;
+            max-width: 200px;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+        th {
+            background-color: #f2f2f2;
+            cursor: pointer;
+            position: sticky;
+            top: 0;
+            z-index: 10;
+        }
+        th:hover {
+            background-color: #ddd;
+        }
+        tr:hover {
+            background-color: #f9f9f9;
+        }
+        tr:hover td {
+            white-space: normal;
+            overflow: visible;
+        }
+        .th-sort-asc::after {
+            content: " ▲";
+        }
+        .th-sort-desc::after {
+            content: " ▼";
+        }
+        .domain-name {
+            font-weight: bold;
+        }
+        .search-container {
+            margin: 20px 0;
+            display: flex;
+            flex-wrap: wrap;
+            gap: 10px;
+            align-items: center;
+        }
+        #search-input {
+            width: 300px;
+            padding: 8px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+        }
+        .stats {
+            margin-top: 20px;
+            padding: 10px;
+            background-color: #f2f2f2;
+            border-radius: 4px;
+        }
+        .available {
+            color: green;
+        }
+        .unavailable {
+            color: red;
+        }
+        .highlight-backlinks {
+            background-color: #ffffd0;
+            font-weight: bold;
+        }
+        .highest-backlinks {
+            background-color: #ffe0a0;
+            font-weight: bold;
+            color: #d04000;
+        }
+        .filters {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 15px;
+            margin-top: 15px;
+        }
+        .filter-group {
+            display: flex;
+            align-items: center;
+        }
+        button {
+            padding: 8px 12px;
+            background-color: #4CAF50;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+        }
+        button:hover {
+            background-color: #45a049;
+        }
+        .filter-input {
+            padding: 8px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            width: 80px;
+        }
+        .column-toggle {
+            margin-top: 15px;
+            padding: 10px;
+            background-color: #f2f2f2;
+            border-radius: 4px;
+        }
+        .column-toggle label {
+            margin-right: 15px;
+            cursor: pointer;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Available Domains Viewer</h1>
+        
+        <div class="search-container">
+            <input type="text" id="search-input" placeholder="Search domains...">
+            <button id="clear-search">Clear</button>
+        </div>
+        
+        <div class="filters">
+            <div class="filter-group">
+                <label for="min-backlinks">Min Backlinks:</label>
+                <input type="number" id="min-backlinks" class="filter-input" min="0">
+            </div>
+            <div class="filter-group">
+                <label for="max-length">Max Length:</label>
+                <input type="number" id="max-length" class="filter-input" min="0">
+            </div>
+            <button id="apply-filters">Apply Filters</button>
+            <button id="reset-filters">Reset All</button>
+        </div>
+        
+        <div class="stats">
+            <p>Total domains: <span id="total-count">0</span></p>
+            <p>Highest backlinks: <span id="highest-backlinks">0</span></p>
+            <p>Domains displayed: <span id="displayed-count">0</span></p>
+        </div>
+        
+        <div class="column-toggle" id="column-toggle">
+            <strong>Show/Hide Columns:</strong>
+            <!-- Checkboxes will be added here dynamically -->
+        </div>
+        
+        <div id="table-container">
+            <table id="domains-table">
+                <thead>
+                    <tr id="header-row">
+                        <!-- Headers will be added here dynamically -->
+                    </tr>
+                </thead>
+                <tbody id="table-body">
+                    <!-- Data rows will be added here dynamically -->
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <script>
+        // This section will be populated by the server with actual data
+        const tableData = []; // Will be filled with domain data
+        const tableHeaders = []; // Will be filled with header names
+        let backlinksColumnIndex = -1;
+        let domainLengthColumnIndex = -1;
+        let highestBacklinks = 0;
+        
+        // Clean number function
+        function cleanNumber(value) {
+            if (typeof value === 'string') {
+                // Remove commas and other non-numeric characters
+                return parseFloat(value.replace(/[^0-9.]/g, '')) || 0;
+            }
+            return 0;
+        }
+        
+        // Function to populate the table
+        function populateTable() {
+            const headerRow = document.getElementById('header-row');
+            const tableBody = document.getElementById('table-body');
+            const columnToggle = document.getElementById('column-toggle');
+            
+            // Clear existing content
+            headerRow.innerHTML = '';
+            tableBody.innerHTML = '';
+            
+            // Populate headers and create column toggles
+            tableHeaders.forEach((header, index) => {
+                // Create header cell
+                const th = document.createElement('th');
+                th.textContent = header;
+                th.dataset.index = index;
+                headerRow.appendChild(th);
+                
+                // Create column toggle checkbox
+                const label = document.createElement('label');
+                const checkbox = document.createElement('input');
+                checkbox.type = 'checkbox';
+                checkbox.checked = true;
+                checkbox.dataset.column = index;
+                checkbox.addEventListener('change', toggleColumn);
+                label.appendChild(checkbox);
+                label.appendChild(document.createTextNode(' ' + header));
+                columnToggle.appendChild(label);
+                
+                // Track special columns
+                if (header.toLowerCase().includes('backlink')) {
+                    backlinksColumnIndex = index;
+                }
+                if (header.toLowerCase().includes('length')) {
+                    domainLengthColumnIndex = index;
+                }
+            });
+            
+            // Populate data rows
+            tableData.forEach(row => {
+                const tr = document.createElement('tr');
+                
+                row.forEach((cell, i) => {
+                    const td = document.createElement('td');
+                    td.textContent = cell;
+                    
+                    // Add appropriate classes
+                    if (i === 0) {
+                        td.classList.add('domain-name');
+                    }
+                    
+                    if (typeof cell === 'string') {
+                        if (cell.toLowerCase().includes('available')) {
+                            td.classList.add('available');
+                        } else if (cell.toLowerCase().includes('unavailable')) {
+                            td.classList.add('unavailable');
+                        }
+                    }
+                    
+                    // Highlight backlinks
+                    if (i === backlinksColumnIndex) {
+                        const value = cleanNumber(cell);
+                        if (value > 0) {
+                            td.classList.add('highlight-backlinks');
+                        }
+                        if (value === highestBacklinks && value > 0) {
+                            td.classList.add('highest-backlinks');
+                        }
+                    }
+                    
+                    tr.appendChild(td);
+                });
+                
+                tableBody.appendChild(tr);
+            });
+            
+            // Set stats
+            document.getElementById('total-count').textContent = tableData.length;
+            document.getElementById('displayed-count').textContent = tableData.length;
+            document.getElementById('highest-backlinks').textContent = highestBacklinks;
+            
+            // Add sorting functionality
+            addSorting();
+            
+            // Initial sort by backlinks if available
+            if (backlinksColumnIndex >= 0) {
+                const backlinksHeader = headerRow.children[backlinksColumnIndex];
+                backlinksHeader.click(); // First click sorts ascending
+                backlinksHeader.click(); // Second click sorts descending
+            }
+        }
+        
+        // Toggle column visibility
+        function toggleColumn(e) {
+            const columnIndex = e.target.dataset.column;
+            const checked = e.target.checked;
+            
+            // Update all cells in that column
+            const table = document.getElementById('domains-table');
+            const cells = table.querySelectorAll(`th:nth-child(${parseInt(columnIndex) + 1}), td:nth-child(${parseInt(columnIndex) + 1})`);
+            
+            cells.forEach(cell => {
+                cell.style.display = checked ? '' : 'none';
+            });
+        }
+        
+        // Add sorting functionality
+        function addSorting() {
+            document.querySelectorAll('#domains-table th').forEach((headerCell) => {
+                headerCell.addEventListener('click', () => {
+                    const tableBody = document.querySelector('#table-body');
+                    const rows = Array.from(tableBody.querySelectorAll('tr'));
+                    const columnIndex = parseInt(headerCell.dataset.index);
+                    
+                    // Get the current sort direction
+                    const currentDirection = headerCell.classList.contains('th-sort-asc') ? 'asc' : 'desc';
+                    const newDirection = currentDirection === 'asc' ? 'desc' : 'asc';
+                    
+                    // Remove sort indicators from all headers
+                    document.querySelectorAll('th').forEach(th => {
+                        th.classList.remove('th-sort-asc', 'th-sort-desc');
+                    });
+                    
+                    // Add indicator to the clicked header
+                    headerCell.classList.add(newDirection === 'asc' ? 'th-sort-asc' : 'th-sort-desc');
+                    
+                    // Sort the rows
+                    rows.sort((rowA, rowB) => {
+                        const cellA = rowA.querySelectorAll('td')[columnIndex].textContent.trim();
+                        const cellB = rowB.querySelectorAll('td')[columnIndex].textContent.trim();
+                        
+                        // Special handling for numeric columns
+                        if (columnIndex === backlinksColumnIndex || 
+                            columnIndex === domainLengthColumnIndex ||
+                            !isNaN(cleanNumber(cellA))) {
+                            
+                            const numA = cleanNumber(cellA);
+                            const numB = cleanNumber(cellB);
+                            return newDirection === 'asc' ? numA - numB : numB - numA;
+                        } else {
+                            return newDirection === 'asc' 
+                                ? cellA.localeCompare(cellB) 
+                                : cellB.localeCompare(cellA);
+                        }
+                    });
+                    
+                    // Reappend sorted rows
+                    tableBody.innerHTML = '';
+                    rows.forEach(row => {
+                        tableBody.appendChild(row);
+                    });
+                });
+            });
+        }
+        
+        // Filter functions
+        function applyAllFilters() {
+            const searchTerm = document.getElementById('search-input').value.toLowerCase();
+            const minBacklinks = parseInt(document.getElementById('min-backlinks').value) || 0;
+            const maxLength = parseInt(document.getElementById('max-length').value) || 999;
+            
+            const rows = document.querySelectorAll('#table-body tr');
+            let visibleCount = 0;
+            
+            rows.forEach(row => {
+                const cells = row.querySelectorAll('td');
+                const text = row.textContent.toLowerCase();
+                
+                // Check search term
+                const matchesSearch = searchTerm === '' || text.includes(searchTerm);
+                
+                // Check backlinks if column exists
+                let matchesBacklinks = true;
+                if (backlinksColumnIndex >= 0 && cells.length > backlinksColumnIndex) {
+                    const backlinksValue = cleanNumber(cells[backlinksColumnIndex].textContent);
+                    matchesBacklinks = backlinksValue >= minBacklinks;
+                }
+                
+                // Check domain length if column exists
+                let matchesLength = true;
+                if (domainLengthColumnIndex >= 0 && cells.length > domainLengthColumnIndex) {
+                    const lengthValue = cleanNumber(cells[domainLengthColumnIndex].textContent);
+                    matchesLength = lengthValue <= maxLength || maxLength === 0;
+                }
+                
+                // Show/hide row based on all filters
+                const shouldShow = matchesSearch && matchesBacklinks && matchesLength;
+                row.style.display = shouldShow ? '' : 'none';
+                
+                if (shouldShow) {
+                    visibleCount++;
+                }
+            });
+            
+            // Update displayed count
+            document.getElementById('displayed-count').textContent = visibleCount;
+        }
+        
+        // Setup event listeners
+        document.addEventListener('DOMContentLoaded', function() {
+            // Search functionality
+            const searchInput = document.getElementById('search-input');
+            searchInput.addEventListener('input', applyAllFilters);
+            
+            // Clear search button
+            document.getElementById('clear-search').addEventListener('click', () => {
+                searchInput.value = '';
+                applyAllFilters();
+            });
+            
+            // Apply filters button
+            document.getElementById('apply-filters').addEventListener('click', applyAllFilters);
+            
+            // Reset filters button
+            document.getElementById('reset-filters').addEventListener('click', () => {
+                document.getElementById('search-input').value = '';
+                document.getElementById('min-backlinks').value = '';
+                document.getElementById('max-length').value = '';
+                
+                // Show all rows
+                document.querySelectorAll('#table-body tr').forEach(row => {
+                    row.style.display = '';
+                });
+                
+                // Reset displayed count
+                document.getElementById('displayed-count').textContent = tableData.length;
+            });
+            
+            // Populate the table
+            populateTable();
+        });
+    </script>
+</body>
+</html> 

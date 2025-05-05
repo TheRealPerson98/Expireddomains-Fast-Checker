@@ -1,0 +1,7 @@
+selenium
+webdriver-manager
+beautifulsoup4
+pandas
+numpy
+urllib3
+requests 
