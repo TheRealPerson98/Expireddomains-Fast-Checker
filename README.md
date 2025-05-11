@@ -31,7 +31,7 @@
 
 1. Clone this repository:
    ```bash
-   git clone https://github.com/yourusername/expireddomains_fast_checker.git
+   git clone https://github.com/thejacedev/expireddomains_fast_checker.git
    cd expireddomains_fast_checker
    ```
 
